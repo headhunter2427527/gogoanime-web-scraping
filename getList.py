@@ -1,11 +1,15 @@
 from bs4 import BeautifulSoup
 import requests
 import pickle as pk
+import time
+import concurrent.futures
+
+t1 = time.perf_counter()
 
 animes = {}
 
-for i in range(1,61):
-    source = requests.get(f"https://gogoanime.so/anime-list.html?page={i}").text
+def getList(sourceLink):
+    source = requests.get(sourceLink).text
 
     soup = BeautifulSoup(source, 'lxml')
 
@@ -17,7 +21,21 @@ for i in range(1,61):
         name = anime.text
         link = anime['href']
 
-        animes[name] = link
+        animes[name] = {}
+        animes[name]["pageLink"] = link
+
+    print(f"Page : {sourceLink.split('=')[1]} completed...")
+
+
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    results = [executor.submit(getList, f"https://gogoanime.so/anime-list.html?page={page}") for page in range(1,61)]
+
+
+print(f"Total animes found: {len(animes)}")
+
+t2 = time.perf_counter()
+
+print(f"Total time taken : {t2-t1} seconds...")
 
 with open('list', 'ab') as f:
     pk.dump(animes, f)
