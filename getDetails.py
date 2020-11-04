@@ -1,12 +1,15 @@
 from bs4 import BeautifulSoup
 import requests
 import pickle as pk
+import time
+import concurrent.futures
 
 with open('list', 'rb') as f:
     animes = pk.load(f)
 
 DOMAIN = "https://gogoanime.so"
 
+t1 = time.perf_counter()
 
 def getDetails(anime):
     source = requests.get(DOMAIN+animes[anime]["pageLink"]).text
@@ -19,23 +22,25 @@ def getDetails(anime):
 
     for detail in p:
         heading = detail.span.text.split(':')
-
-        if detail.a:
-            a = detail.find_all('a')
-            for link in a:
-                value = link.text.split(',')
-                if not value[0]:
-                    animes[anime][heading[0]].append(value[1].strip())
-                else:
-                    if(len(a)>1):
-                        animes[anime][heading[0]] = [value[0].strip()]
-                    else:
-                        animes[anime][heading[0]] = value[0].strip()
+        if animes[anime][heading[0]]:
+            continue
         else:
-            try:
-                animes[anime][heading[0]] = detail.contents[1]
-            except Exception as e:
-                pass
+            if detail.a:
+                a = detail.find_all('a')
+                for link in a:
+                    value = link.text.split(',')
+                    if not value[0]:
+                        animes[anime][heading[0]].append(value[1].strip())
+                    else:
+                        if(len(a)>1):
+                            animes[anime][heading[0]] = [value[0].strip()]
+                        else:
+                            animes[anime][heading[0]] = value[0].strip()
+            else:
+                try:
+                    animes[anime][heading[0]] = detail.contents[1]
+                except Exception as e:
+                    pass
 
     episode = soup.find('div', class_='anime_video_body')
 
@@ -44,7 +49,14 @@ def getDetails(anime):
 
     animes[anime]["Total Episodes"] = totalEpisodes
 
-    print(animes[anime])
+    print(f"{anime} details completed...")
 
-getDetails('One Piece')
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    results = [executor.submit(getDetails, anime) for anime in animes.keys()]
 
+t2 = time.perf_counter()
+
+print(f"Total time taken : {t2-t1} seconds...")
+
+with open('list', 'ab') as f:
+    pk.dump(animes, f)
